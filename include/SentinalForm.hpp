@@ -10,7 +10,7 @@ namespace IStudio::Compiler
     {
     public:
         using RuleType = std::reference_wrapper<const Rule>;
-        using MarkerType = std::views::iterator_t<Rule::Right_Type>;
+        using MarkerType = std::ranges::filter_view<std::ranges::ref_view<const IStudio::Compiler::Rule::Right_Type>, decltype(Util::valid)>::Iterator;
 
         constexpr SentinalForm() = default;
         constexpr ~SentinalForm() = default;
@@ -76,7 +76,7 @@ namespace IStudio::Compiler
         constexpr Symbol getSymbolAfterMarker() const{
             auto rule = getRule();
             auto right = rule.getRight();
-            MarkerType end = Util::iterate(right).end();
+            MarkerType end = right.end();
             if( end != getMarker())
             return Symbol{};
         }

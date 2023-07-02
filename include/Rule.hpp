@@ -31,9 +31,9 @@ namespace IStudio::Compiler
             return left;
         }
 
-        constexpr Right_Type getRight() const
+        constexpr auto getRight() const
         {
-            return right;
+            return IStudio::Util::iterate(right);
         }
 
         constexpr bool isValid() const
@@ -43,7 +43,7 @@ namespace IStudio::Compiler
 
         constexpr bool operator==(const Rule &r) const
         {
-            return getLeft() == r.getLeft() && getRight() == r.getRight();
+            return getLeft() == r.getLeft() && IStudio::Util::compareFilterViews(getRight(), r.getRight());
         }
 
         constexpr bool operator!=(const Rule &r) const
@@ -53,41 +53,53 @@ namespace IStudio::Compiler
 
         constexpr bool operator<(const Rule &r) const
         {
+            auto r1 = getRight();
+            auto r2 = r.getRight();
+
+            auto s1 = r1.begin();
+            auto e1 = r1.end();
+            auto s2 = r2.begin();
+            auto e2 = r2.end();
+
             if (getLeft() == r.getLeft())
-                return getRight() < r.getRight();
+                return std::lexicographical_compare(s1,e1,s2,e2);
             return getLeft() < r.getLeft();
         }
 
         constexpr bool operator>(const Rule &r) const
         {
+            auto r1 = getRight();
+            auto r2 = r.getRight();
+
+            auto s1 = r1.begin();
+            auto e1 = r1.end();
+            auto s2 = r2.begin();
+            auto e2 = r2.end();
+
             if (getLeft() == r.getLeft())
-                return getRight() > r.getRight();
+                return !std::lexicographical_compare(s1, e1, s2, e2);
             return getLeft() > r.getLeft();
         }
 
         constexpr bool operator<=(const Rule &r) const
         {
-            if (getLeft() == r.getLeft())
-                return getRight() <= r.getRight();
-            return getLeft() <= r.getLeft();
+            return (*this==r) || (*this < r);
         }
 
         constexpr bool operator>=(const Rule &r) const
         {
-            if (getLeft() == r.getLeft())
-                return getRight() >= r.getRight();
-            return getLeft() >= r.getLeft();
+            return (*this == r) || (*this > r);
         }
 
         friend std::ostream &operator<<(std::ostream &o, const Rule &r)
         {
             o << r.getLeft() << " <= ";
             auto right = r.getRight();
-            for (auto rhs : Util::iterate(right))
+            for (auto rhs : right)
                 o << rhs << " ";
             return o;
         }
     };
 
-    constexpr Rule DEFAULT_RULE;
+    static constexpr Rule DEFAULT_RULE;
 } // namespace IStudio::Compiler

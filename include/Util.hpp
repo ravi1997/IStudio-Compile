@@ -9,8 +9,13 @@ namespace IStudio::Util
 
     constexpr auto valid = [](auto e)->bool{return e.isValid();};
 
+    bool compareFilterViews(auto filter1, auto filter2)
+    {
+        return (filter1.base() == filter2.base()) && (filter1.predicate() == filter2.predicate());
+    }
+
     template <typename t, std::size_t N, typename filter_type = decltype(valid)>
-    constexpr auto iterate(std::array<t, N> &arr, filter_type fil = valid)
+    constexpr auto iterate(const std::array<t, N> &arr, filter_type fil = valid)
     {
         return arr | std::views::filter(fil);
     }

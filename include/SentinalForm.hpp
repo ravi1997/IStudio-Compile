@@ -10,7 +10,7 @@ namespace IStudio::Compiler
     {
     public:
         using RuleType = std::reference_wrapper<const Rule>;
-        using MarkerType = std::ranges::filter_view<std::ranges::ref_view<const IStudio::Compiler::Rule::Right_Type>, decltype(Util::valid)>::Iterator;
+        using MarkerType = decltype(DEFAULT_RULE.getRight().begin());
 
         constexpr SentinalForm() = default;
         constexpr ~SentinalForm() = default;
@@ -97,8 +97,21 @@ namespace IStudio::Compiler
         {
             if (!isValid() || !other.isValid())
                 return false;
-            if (getRule() == other.getRule())
-                return getMarker() < other.getMarker();
+            if (getRule() == other.getRule()){
+                auto r1 = getRule();
+                auto r2 = other.getRule();
+                
+                auto rr1 = r1.getRight();
+                auto rr2 = r2.getRight();
+
+                auto rrb1 = rr1.begin();
+                auto rrb2 = rr2.begin();
+
+                auto d1 = std::distance(rrb1,getMarker());
+                auto d2 = std::distance(rrb2,other.getMarker());
+
+                return d1 < d2;
+            }
             return getRule() < other.getRule();
         }
 
@@ -107,26 +120,32 @@ namespace IStudio::Compiler
             if (!isValid() || !other.isValid())
                 return false;
             if (getRule() == other.getRule())
-                return getMarker() > other.getMarker();
+            {
+                auto r1 = getRule();
+                auto r2 = other.getRule();
+
+                auto rr1 = r1.getRight();
+                auto rr2 = r2.getRight();
+
+                auto rrb1 = rr1.begin();
+                auto rrb2 = rr2.begin();
+
+                auto d1 = std::distance(rrb1, getMarker());
+                auto d2 = std::distance(rrb2, other.getMarker());
+
+                return d1 > d2;
+            }
             return getRule() > other.getRule();
         }
 
         constexpr bool operator<=(const SentinalForm &other) const
         {
-            if (!isValid() || !other.isValid())
-                return false;
-            if (getRule() == other.getRule())
-                return getMarker() <= other.getMarker();
-            return getRule() <= other.getRule();
+            return (*this == other) || (*this < other);
         }
 
         constexpr bool operator>=(const SentinalForm &other) const
         {
-            if (!isValid() || !other.isValid())
-                return false;
-            if (getRule() == other.getRule())
-                return getMarker() >= other.getMarker();
-            return getRule() >= other.getRule();
+            return (*this == other) || (*this > other);
         }
 
     private:

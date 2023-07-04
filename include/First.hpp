@@ -50,7 +50,7 @@ namespace IStudio::Compiler
         auto right = s.getRight();
         auto left = s.getLeft();
         bool flag = false;
-        for (auto rhs : Util::iterate(right) ){
+        for (auto rhs : right ){
             if(Util::find_first(stack,rhs)!=0){
                 break;
             }

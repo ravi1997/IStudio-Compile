@@ -71,14 +71,7 @@ int main()
 													{ return f.isValid(); }))
 			std::cout << "\t" << f << std::endl;
 
-		try
-		{
-			throw Exception{};
-	}
-	catch (const Exception &e)
-	{
-		std::cerr << e << std::endl;
-	}
+		
 
 	return 0;
 }

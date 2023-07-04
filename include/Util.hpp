@@ -9,9 +9,18 @@ namespace IStudio::Util
 
     constexpr auto valid = [](auto e)->bool{return e.isValid();};
 
+    namespace rng = std::ranges;
+
+    template <rng::range R>
+    constexpr auto to_vector(R &&r)
+    {
+        using elem_t = std::decay_t<rng::range_value_t<R>>;
+        return std::vector<elem_t>{r.begin(), r.end()};
+    }
+
     bool compareFilterViews(auto filter1, auto filter2)
     {
-        return (filter1.base() == filter2.base()) && (filter1.predicate() == filter2.predicate());
+        return to_vector(filter1) == to_vector(filter2);
     }
 
     template <typename t, std::size_t N, typename filter_type = decltype(valid)>
@@ -25,6 +34,15 @@ namespace IStudio::Util
     {
         std::size_t len = 0;
         for ([[maybe_unused]] auto e : iterate(arr,fil))
+            len++;
+        return len;
+    }
+
+    template <typename t, std::size_t N, typename filter_type = decltype(valid)>
+    constexpr std::size_t length(std::ranges::filter_view<std::ranges::ref_view<const std::array<t, N>>, filter_type> &arr, [[maybe_unused]] filter_type fil = valid)
+    {
+        std::size_t len = 0;
+        for ([[maybe_unused]] auto e : arr)
             len++;
         return len;
     }
@@ -108,6 +126,20 @@ namespace IStudio::Util
         for (auto a : iterate(arr,fil))
             if (a == e)
                 insert(result,index,[](auto sss){return sss != 0;});
+            else
+                index++;
+        return result;
+    }
+
+    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
+    constexpr std::array<std::size_t, N> find_all(std::ranges::filter_view<std::ranges::ref_view<const std::array<t, N>>, filter_type>& arr, T e,[[maybe_unused]] filter_type fil = valid)
+    {
+        std::array<std::size_t, N> result = {0};
+        std::size_t index = 1;
+        for (auto a : arr)
+            if (a == e)
+                insert(result, index, [](auto sss)
+                       { return sss != 0; });
             else
                 index++;
         return result;

@@ -36,7 +36,15 @@ namespace IStudio::Compiler
                 else{
                     bool flag = false;
                     for(;index<=len;index++){
-                        auto temp_first = FIRST(right[index],g);
+                        auto increment = [](auto start,auto count){
+                            for(decltype(count) i=0;i<count;i++)
+                                start++;
+                            return start;
+                        };
+
+
+                        auto element = *(increment(right.begin(),index));
+                        auto temp_first = FIRST(element,g);
                         if(Util::find_first(temp_first,EPSILON)!=0){
                             Util::remove_first(temp_first,EPSILON);
                             flag = true;

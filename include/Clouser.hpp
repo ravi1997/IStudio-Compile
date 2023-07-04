@@ -5,7 +5,7 @@
 
 namespace IStudio::Compiler
 {
-    STATE_TYPE& CLOUSER(STATE_TYPE& I,Grammer& g){
+    STATE_TYPE& CLOUSER(STATE_TYPE& I,[[maybe_unused]]Grammer& g){
         bool newItem = false;
         STATE_TYPE newItems;
         do{

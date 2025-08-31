@@ -1,77 +1,108 @@
 #include <iostream>
-#include <Exception.h>
-#include <UUID.h>
+#include <Grammar.hpp>
+#include <Exception.hpp>
 #include <Nonterminal.hpp>
 #include <Terminal.hpp>
-#include <Grammer.hpp>
-#include <Clouser.hpp>
-#include <First.hpp>
-#include <Follow.hpp>
+#include <Lexer.hpp>
+#include <Compiler.hpp>
+#include <fs/File.hpp>
+#include <Logger.hpp>
+
 
 int main()
 {
-	using namespace IStudio::Exception;
+	using namespace IStudio::Compiler;
+	using namespace IStudio::Log;
 
-	std::cout << "Hello World!\n"
-			  << std::endl;
+	Logger logger("logfile.txt", LogLevel::DEBUG);
 
-	IStudio::Util::UUID id;
-	constexpr IStudio::Compiler::Nonterminal start{"start"};
-	constexpr IStudio::Compiler::Nonterminal ImportStatement{"ImportStatement"};
-	constexpr IStudio::Compiler::Nonterminal package{"package"};
-	constexpr IStudio::Compiler::Nonterminal packages{"packagespackages"};
+	// Setup logger
+	logger.setDefaultLogLevel({LogLevel::DEBUG, LogLevel::INFO, LogLevel::ERROR});
+	logger.setDefaultDepth(2);
 
-	constexpr IStudio::Compiler::Terminal import{"import", "import", 1000, IStudio::Compiler::Associativity::LEFT, IStudio::Compiler::TerminalType::KEYWORD};
-	constexpr IStudio::Compiler::Terminal from{"from", "from", 1000, IStudio::Compiler::Associativity::LEFT, IStudio::Compiler::TerminalType::KEYWORD};
-	constexpr IStudio::Compiler::Terminal as{"as", "as", 1000, IStudio::Compiler::Associativity::LEFT, IStudio::Compiler::TerminalType::KEYWORD};
-	constexpr IStudio::Compiler::Terminal identifier{
-		"identifier", "^[a-zA-Z_][a-zA-Z0-9_]*$", 10, IStudio::Compiler::Associativity::LEFT, IStudio::Compiler::TerminalType::IDENTIFIER};
 
-					  constexpr IStudio::Compiler::Rule FirstRule = start <= IStudio::Compiler::rule(ImportStatement);
+	logger(LogLevel::INFO) << "Starting Compiler Program...";
 
-		using namespace IStudio::Compiler;
+	try {
+		// Define grammar elements
+		logger(LogLevel::DEBUG) << "Defining NonTerminals...";
+		Nonterminal start{"start"};
+		Nonterminal ImportStatement{"ImportStatement"};
+		Nonterminal package{"package"};
+		Nonterminal packages{"packages"};
 
-		constexpr Grammer g{
+	
+
+		logger(LogLevel::DEBUG) << "Defining Terminals...";
+		Terminal import{"import", "import", 10, Associativity::LEFT, TerminalType::KEYWORD};
+		Terminal from{"from", "from", 10, Associativity::LEFT, TerminalType::KEYWORD};
+		Terminal as{"as", "as", 10, Associativity::LEFT, TerminalType::KEYWORD};
+		Terminal semicolon{"semicolon", ";", 400, Associativity::LEFT, TerminalType::SEPARATOR};
+		Terminal space{"space", "\\s", 500, Associativity::LEFT, TerminalType::SPECIAL};
+		Terminal newline{"newline", "\r\n|\r|\n", 500, Associativity::LEFT, TerminalType::SPECIAL};
+		Terminal identifier{"identifier", "[a-zA-Z_][a-zA-Z0-9_]*", 1000, Associativity::LEFT, TerminalType::IDENTIFIER};
+
+
+		logger(LogLevel::DEBUG) << "Creating rules...";
+		Rule FirstRule = start <= rule(ImportStatement);
+
+
+		logger(LogLevel::INFO) << "Constructing grammar...";
+		Grammar grammar{
 			start,
-			Grammer::Terminals_Type{import},
-			Grammer::NonTerminals_Type{start, ImportStatement},
-			Grammer::Rules_Type{
-				start <= rule(ImportStatement),
-				ImportStatement <= rule(from, package, import, package),
-				ImportStatement <= rule(from, package, import, packages),
-				ImportStatement <= rule(from, package, import, package, as, identifier),
-				ImportStatement <= rule()
-
-			}};
-
-		[[maybe_unused]] constexpr auto count = [](auto arr) -> std::size_t
-		{
-			for (std::size_t i = 0; i < arr.size(); i++)
-			{
-				if (!arr[i].isValid())
-					return i;
-			}
-			return 0;
+			Grammar::Terminals_Type{import, from, as, identifier, semicolon},
+			Grammar::Terminals_Type{space, newline},
+			Grammar::NonTerminals_Type{start, ImportStatement, package, packages},
+			FirstRule,
+			Grammar::Rules_Type{
+				FirstRule,
+				ImportStatement <= rule(from, package, import, package, semicolon),
+				ImportStatement <= rule(from, package, import, packages, semicolon),
+				ImportStatement <= rule(from, package, import, package, as, identifier, semicolon),
+				ImportStatement <= rule(),
+				package <= rule(identifier)
+			},
+			logger
 		};
 
-		// static_assert(count(g.getRules()) == 2);
 
-		std::cout << g << std::endl;
+		logger(LogLevel::INFO) << "Grammar constructed successfully.";
 
-		constexpr auto myFirst = FIRST(start, g);
-		constexpr auto myFollow = FOLLOW(as, g);
+		logger(LogLevel::INFO) << "Initializing compiler with grammar.";
+		Compiler compiler{grammar,logger};
 
-		std::cout << "First of the start symbol" << std::endl;
-		for (auto f : myFirst | std::views::filter([](auto f)
-												   { return f.isValid(); }))
-			std::cout << "\t" << f << std::endl;
+		std::string code = "from IStudio import Lang ;";
+		logger(LogLevel::INFO) << "Source Code: " << code;
 
-		std::cout << "Follow of the as symbol" << std::endl;
-		for (auto f : myFollow | std::views::filter([](auto f)
-													{ return f.isValid(); }))
-			std::cout << "\t" << f << std::endl;
+		logger(LogLevel::INFO) << "Running compiler...";
+		auto root = code | compiler;
+		if (!root)
+		{
+			logger(LogLevel::INFO) << "[SyntaxAnalyser] Empty AST.\n";
+		}
+		else{
+			logger(LogLevel::INFO) << "[SyntaxAnalyser] Analyzing AST:\n";
+			ASTPrinter::print(root,logger);
+		}
 
-		
+		// std::cout << "Parser : " << ((success_code) ? "Passed" : "Not Passed") << std::endl;
+	}
+	catch (const IStudio::Exception::Exception &e)
+	{
+		logger(LogLevel::CRITICAL) << "Custom Exception: " << e.what();
+		std::cerr << "Exception: " << e.what() << std::endl;
+	}
+	catch (const std::exception &e)
+	{
+		logger(LogLevel::CRITICAL) << "Standard Exception: " << e.what();
+		std::cerr << "Standard Exception: " << e.what() << std::endl;
+	}
+	catch (...)
+	{
+		logger(LogLevel::CRITICAL) << "Unknown Exception caught";
+		std::cerr << "Unknown Exception caught" << std::endl;
+	}
 
+	logger(LogLevel::INFO) << "Program terminated.";
 	return 0;
 }

@@ -2,6 +2,9 @@
 
 #include "Types_Compiler.hpp"
 #include "Lang.hpp"
+#include "UUID.h"
+#include <ostream>
+#include <string_view>
 
 namespace IStudio::Compiler
 {
@@ -9,7 +12,7 @@ namespace IStudio::Compiler
     namespace Details
     {
         template <std::size_t N>
-        constexpr IStudio::Lang::String toStdArray(const char (&str)[N])
+        IStudio::Lang::String toStdArray(const char (&str)[N])
         {
             IStudio::Lang::String arr{};
             for (std::size_t i = 0; i < N; ++i)
@@ -40,7 +43,7 @@ namespace IStudio::Compiler
         LITERAL,
         IDENTIFIER,
         OPERATOR,
-        SEPERATOR,
+        SEPARATOR,
         COMMENT,
         SPECIAL,
         NONE
@@ -75,147 +78,77 @@ namespace IStudio::Compiler
     class Symbol
     {
     public:
-        using NAME_TYPE = IStudio::Lang::String;
-        using PATTERN_TYPE = IStudio::Lang::String;
-        using TYPE = SymbolType;
+        using NAME_TYPE = std::string_view;
+        using PATTERN_TYPE = std::string_view;
         using PRECEDENCE = IStudio::Lang::Integer;
-        using ASSOCIATIVITY = Associativity;
-        using TERMINALTYPE = TerminalType;
-        using LITERALTYPE = LiteralType;
-        using OPERATORTYPE = OperatorType;
-        using COMMENTTYPE = CommentType;
 
     private:
-        NAME_TYPE name = IStudio::Compiler::Details::toStdArray("");
-        PATTERN_TYPE pattern = IStudio::Compiler::Details::toStdArray("");
-        TYPE type = TYPE::NONE;
+        NAME_TYPE name{};
+        PATTERN_TYPE pattern{};
+        SymbolType type = SymbolType::NONE;
         PRECEDENCE precedence = 0;
-        ASSOCIATIVITY associativity = ASSOCIATIVITY::NONE;
-        bool valid = false;
+        Associativity associativity = Associativity::NONE;
 
-        TERMINALTYPE terminalType = TERMINALTYPE::NONE;
-        LITERALTYPE literalType = LITERALTYPE::NONE;
-        OPERATORTYPE operatorType = OPERATORTYPE::NONE;
-        COMMENTTYPE commentType = COMMENTTYPE::NONE;
+        TerminalType terminalType = TerminalType::NONE;
+        LiteralType literalType = LiteralType::NONE;
+        OperatorType operatorType = OperatorType::NONE;
+        CommentType commentType = CommentType::NONE;
+
+        Util::UUID guid;
 
     public:
-        constexpr Symbol() = default;
-        constexpr Symbol(const Symbol&) = default;
-        constexpr Symbol& operator=(const Symbol&) = default;
-        constexpr ~Symbol() = default;
+        Symbol() = default;
 
-        constexpr NAME_TYPE getName() const { return name; }
-        constexpr PATTERN_TYPE getPattern() const { return pattern; }
-        constexpr TYPE getType() const { return type; }
-        constexpr PRECEDENCE getPrecedence() const { return precedence; }
-        constexpr ASSOCIATIVITY getAssociativity() const { return associativity; }
-        constexpr bool isValid() const { return valid; }
-        constexpr TERMINALTYPE getTerminalType() const { return terminalType; }
-        constexpr LITERALTYPE getLiteralType() const { return literalType; }
-        constexpr OPERATORTYPE getOperatorType() const { return operatorType; }
-        constexpr COMMENTTYPE getCommentType() const { return commentType; }
+        // Constructor for non-terminal symbols
+        explicit Symbol(NAME_TYPE n, PRECEDENCE p, Associativity a)
+            : name{n}, pattern{n}, type{SymbolType::NONTERMINAL}, precedence{p}, associativity{a} {}
 
-        template <std::size_t N>
-        constexpr Symbol(const char (&n)[N], PRECEDENCE p, ASSOCIATIVITY a) : name{Details::toStdArray(n)},
-                                                                              pattern{Details::toStdArray(n)},
-                                                                              type{TYPE::NONTERMINAL},
-                                                                              precedence{p},
-                                                                              associativity{a},
-                                                                              valid{true}
+        // Constructor for literal terminal symbols
+        Symbol(NAME_TYPE n, NAME_TYPE p, PRECEDENCE pc, Associativity a, LiteralType l)
+            : name{n}, pattern{p}, type{SymbolType::TERMINAL}, precedence{pc}, associativity{a}, terminalType{TerminalType::LITERAL}, literalType{l} {}
+
+        // Constructor for operator terminal symbols
+        Symbol(NAME_TYPE n, NAME_TYPE p, PRECEDENCE pc, Associativity a, OperatorType o)
+            : name{n}, pattern{p}, type{SymbolType::TERMINAL}, precedence{pc}, associativity{a}, terminalType{TerminalType::OPERATOR}, operatorType{o} {}
+
+        // Constructor for comment terminal symbols
+        Symbol(NAME_TYPE n, NAME_TYPE p, PRECEDENCE pc, Associativity a, CommentType c)
+            : name{n}, pattern{p}, type{SymbolType::TERMINAL}, precedence{pc}, associativity{a}, terminalType{TerminalType::COMMENT}, commentType{c} {}
+
+        // Constructor for general terminal symbols
+        Symbol(NAME_TYPE n, NAME_TYPE p, PRECEDENCE pc, Associativity a, TerminalType t)
+            : name{n}, pattern{p}, type{SymbolType::TERMINAL}, precedence{pc}, associativity{a}, terminalType{t} {}
+
+        // Getter methods
+        [[nodiscard]] NAME_TYPE getName() const { return name; }
+        [[nodiscard]] PATTERN_TYPE getPattern() const { return pattern; }
+        [[nodiscard]] SymbolType getType() const { return type; }
+        [[nodiscard]] PRECEDENCE getPrecedence() const { return precedence; }
+        [[nodiscard]] Associativity getAssociativity() const { return associativity; }
+        [[nodiscard]] TerminalType getTerminalType() const { return terminalType; }
+        [[nodiscard]] LiteralType getLiteralType() const { return literalType; }
+        [[nodiscard]] OperatorType getOperatorType() const { return operatorType; }
+        [[nodiscard]] CommentType getCommentType() const { return commentType; }
+
+        // Check methods
+        [[nodiscard]] bool isNonterminal() const { return getType() == SymbolType::NONTERMINAL; }
+        [[nodiscard]] bool isTerminal() const { return getType() == SymbolType::TERMINAL; }
+
+        // Comparison operators
+        bool operator==(const Symbol &s) const { return getName() == s.getName(); }
+        bool operator!=(const Symbol &s) const { return getName() != s.getName(); }
+        bool operator<(const Symbol &other) const { return getPrecedence() == other.getPrecedence() ? getName() < other.getName() : getPrecedence() < other.getPrecedence(); }
+        bool operator<=(const Symbol &other) const { return getPrecedence() == other.getPrecedence() ? getName() <= other.getName() : getPrecedence() < other.getPrecedence(); }
+        bool operator>(const Symbol &other) const { return getPrecedence() == other.getPrecedence() ? getName() > other.getName() : getPrecedence() > other.getPrecedence(); }
+        bool operator>=(const Symbol &other) const { return getPrecedence() == other.getPrecedence() ? getName() >= other.getName() : getPrecedence() > other.getPrecedence(); }
+
+        // Output operator for printing
+        friend std::ostream &operator<<(std::ostream &o, const Symbol &s)
         {
-        }
-
-        template <std::size_t N, std::size_t M>
-        constexpr Symbol(const char (&n)[N], const char (&p)[M], PRECEDENCE pc, ASSOCIATIVITY a, LITERALTYPE l) : name{Details::toStdArray(n)},
-                                                                                                                  pattern{Details::toStdArray(p)},
-                                                                                                                  type{TYPE::TERMINAL},
-                                                                                                                  precedence{pc},
-                                                                                                                  associativity{a},
-                                                                                                                  valid{true},
-                                                                                                                  terminalType{TERMINALTYPE::LITERAL},
-                                                                                                                  literalType{l}
-        {
-        }
-
-        template <std::size_t N, std::size_t M>
-        constexpr Symbol(const char (&n)[N], const char (&p)[M], PRECEDENCE pc, ASSOCIATIVITY a, OPERATORTYPE o) : name{Details::toStdArray(n)},
-                                                                                                                   pattern{Details::toStdArray(p)},
-                                                                                                                   type{TYPE::TERMINAL},
-                                                                                                                   precedence{pc},
-                                                                                                                   associativity{a},
-                                                                                                                   valid{true},
-                                                                                                                   terminalType{TERMINALTYPE::OPERATOR},
-                                                                                                                   operatorType{o}
-        {
-        }
-
-        template <std::size_t N, std::size_t M>
-        constexpr Symbol(const char (&n)[N], const char (&p)[M], PRECEDENCE pc, ASSOCIATIVITY a, CommentType l) : name{Details::toStdArray(n)},
-                                                                                                                  pattern{Details::toStdArray(p)},
-                                                                                                                  type{TYPE::TERMINAL},
-                                                                                                                  precedence{pc},
-                                                                                                                  associativity{a},
-                                                                                                                  valid{true},
-                                                                                                                  terminalType{TERMINALTYPE::COMMENT},
-                                                                                                                  commentType{l}
-        {
-        }
-        template <std::size_t N, std::size_t M>
-        constexpr Symbol(const char (&n)[N], const char (&p)[M], PRECEDENCE pc, ASSOCIATIVITY a, TERMINALTYPE t) : name{Details::toStdArray(n)},
-                                                                                                                   pattern{Details::toStdArray(p)},
-                                                                                                                   type{TYPE::TERMINAL},
-                                                                                                                   precedence{pc},
-                                                                                                                   associativity{a},
-                                                                                                                   valid{true},
-                                                                                                                   terminalType{t}
-        {
-        }
-
-        constexpr bool isNonterminal() const
-        {
-            return getType() == TYPE::NONTERMINAL;
-        }
-
-        constexpr bool isTerminal() const
-        {
-            return getType() == TYPE::TERMINAL;
-        }
-
-
-        constexpr bool operator==(Symbol s)const{
-            return getName() == s.getName();
-        }
-
-        constexpr bool operator!=(Symbol s)const{
-            return getName() != s.getName();
-        }
-
-        constexpr bool operator<(const Symbol &other) const
-        {
-            return getName() < other.getName();
-        }
-
-        constexpr bool operator<=(const Symbol &other) const
-        {
-            return getName() <= other.getName();
-        }
-
-        constexpr bool operator>(const Symbol &other) const
-        {
-            return getName() > other.getName();
-        }
-
-        constexpr bool operator>=(const Symbol &other) const
-        {
-            return getName() >= other.getName();
-        }
-
-        friend std::ostream& operator<<(std::ostream& o,Symbol s){
-            for(auto n : s.getName() | std::views::filter([](auto c){return c!='\0';}))
+            for (const auto &n : s.getName())
                 o << n;
             return o;
         }
-
     };
 
-}
+} // namespace IStudio::Compiler

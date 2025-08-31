@@ -4388,7 +4388,7 @@ private:
   std::thread reporter_thread_;
 
   // TODO: how not to hardcode these?
-  static const constexpr int signal_skip_recs =
+  static const  int signal_skip_recs =
 #ifdef __clang__
       // With clang, RtlCaptureContext also captures the stack frame of the
       // current function Below that, there are 3 internal Windows functions

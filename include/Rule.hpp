@@ -2,104 +2,108 @@
 
 #include "Symbol.hpp"
 #include "Util.hpp"
+#include "UUID.h"
+#include <vector>
+#include <ostream>
+#include <algorithm>
+#include <ranges>
 
 namespace IStudio::Compiler
 {
     class Rule
     {
     public:
-        constexpr static std::size_t array_size = 25;
         using Left_Type = Symbol;
-        using Right_Type = std::array<Symbol, array_size>;
+        using Right_Type = std::vector<Symbol>;
 
     private:
         Left_Type left;
         Right_Type right;
-        bool valid = false;
+        Util::UUID guid;
 
     public:
-        constexpr Rule(Left_Type l, Right_Type r)
-            : left{l}, right{r}, valid{true}
+        // Constructors and destructor
+        Rule(Left_Type l, Right_Type r)
+            : left{l}, right{r}
         {
         }
 
-        constexpr Rule() = default;
-        constexpr ~Rule() = default;
+        Rule(const Rule &) = default;
+        Rule(Rule &&) = default;
+        Rule &operator=(const Rule &) = default;
+        Rule &operator=(Rule &&) = default;
+        Rule() = default;
+        ~Rule() = default;
 
-        constexpr Left_Type getLeft() const
+        // Accessor methods
+        const Left_Type &getLeft() const
         {
             return left;
         }
 
-        constexpr auto getRight() const
+        auto getRight() const
         {
-            return IStudio::Util::iterate(right);
+            return right;
         }
 
-        constexpr bool isValid() const
+        // Comparison operators
+        bool operator==(const Rule &r) const
         {
-            return valid;
+            return getLeft() == r.getLeft() && getRight() == r.getRight();
         }
 
-        constexpr bool operator==(const Rule &r) const
-        {
-            return getLeft() == r.getLeft() && IStudio::Util::compareFilterViews(getRight(), r.getRight());
-        }
-
-        constexpr bool operator!=(const Rule &r) const
+        bool operator!=(const Rule &r) const
         {
             return !(*this == r);
         }
 
-        constexpr bool operator<(const Rule &r) const
+        bool operator<(const Rule &r) const
         {
             auto r1 = getRight();
             auto r2 = r.getRight();
-
-            auto s1 = r1.begin();
-            auto e1 = r1.end();
-            auto s2 = r2.begin();
-            auto e2 = r2.end();
-
-            if (getLeft() == r.getLeft())
-                return std::lexicographical_compare(s1,e1,s2,e2);
-            return getLeft() < r.getLeft();
+            return std::lexicographical_compare(r1.begin(), r1.end(), r2.begin(), r2.end());
         }
 
-        constexpr bool operator>(const Rule &r) const
+        bool operator>(const Rule &r) const
         {
             auto r1 = getRight();
             auto r2 = r.getRight();
-
-            auto s1 = r1.begin();
-            auto e1 = r1.end();
-            auto s2 = r2.begin();
-            auto e2 = r2.end();
-
-            if (getLeft() == r.getLeft())
-                return !std::lexicographical_compare(s1, e1, s2, e2);
-            return getLeft() > r.getLeft();
+            return !std::lexicographical_compare(r1.begin(), r1.end(), r2.begin(), r2.end());
         }
 
-        constexpr bool operator<=(const Rule &r) const
+        bool operator<=(const Rule &r) const
         {
-            return (*this==r) || (*this < r);
+            return (*this == r) || (*this < r);
         }
 
-        constexpr bool operator>=(const Rule &r) const
+        bool operator>=(const Rule &r) const
         {
             return (*this == r) || (*this > r);
         }
 
+        // Output operator for printing
         friend std::ostream &operator<<(std::ostream &o, const Rule &r)
         {
             o << r.getLeft() << " <= ";
             auto right = r.getRight();
-            for (auto rhs : right)
+            for (const auto &rhs : right)
                 o << rhs << " ";
             return o;
         }
+
+        // Get precedence based on the right-hand side symbols
+        Lang::Integer getPrecedence() const
+        {
+            for (auto symbol : std::views::reverse(getRight()))
+            {
+                if (symbol.isTerminal())
+                    return symbol.getPrecedence();
+            }
+            return DOLLAR.getPrecedence();
+        }
     };
 
-    static constexpr Rule DEFAULT_RULE;
+    // Default rule definition
+    static Rule DEFAULT_RULE;
+
 } // namespace IStudio::Compiler

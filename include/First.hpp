@@ -2,75 +2,100 @@
 #include "Types_Compiler.hpp"
 #include "Terminal.hpp"
 #include "Symbol.hpp"
-#include "Grammer.hpp"
+#include "Grammar.hpp"
 #include "Util.hpp"
 
 namespace IStudio::Compiler
 {
-    constexpr std::size_t first_size = 50;
-    using FIRST_TYPE = std::array<Terminal,first_size>;
+    using FIRST_TYPE = std::set<Terminal>;
+    using FIRST_STACK_TYPE = std::vector<Symbol>;
 
-    using FIRST_STACK_TYPE = std::array<Symbol,Grammer::rule_size>;
+    FIRST_TYPE FIRST(const Symbol &s, const Grammar &g, FIRST_STACK_TYPE stack = {}, bool verbose = false);
+    FIRST_TYPE FIRST(const Rule &s, const Grammar &g, FIRST_STACK_TYPE stack = {}, bool verbose = false);
 
-
-
-    constexpr FIRST_TYPE FIRST(Symbol s,Grammer g,FIRST_STACK_TYPE stack = {});
-    constexpr FIRST_TYPE FIRST(Rule s,Grammer g,FIRST_STACK_TYPE stack = {});
-
-    constexpr FIRST_TYPE FIRST(Symbol s, Grammer g, [[maybe_unused]] FIRST_STACK_TYPE stack)
+    FIRST_TYPE FIRST(const Symbol &s, const Grammar &g, [[maybe_unused]] FIRST_STACK_TYPE stack, [[maybe_unused]] bool verbose)
     {
-        // static_assert(s.isValid(),"Symbol must be valid.");     
         FIRST_TYPE result;
-        std::size_t inserted = 0;
-        if (Util::find_first(stack, s) != 0)
+
+        // Check if symbol has already been processed in the current path (avoid infinite recursion)
+        if (std::find(stack.begin(), stack.end(), s) != stack.end())
         {
             return result;
         }
-        if(s.isNonterminal()){
-            for(auto& rule : g.getRules()){
-                if(rule.getLeft() == s){
 
-                    Util::insert(stack,s);
-                    auto temp_first = FIRST(rule,g,stack);
-                    Util::insert_if_no_present(result,temp_first);
-                    Util::remove_first(stack, s);
+        // Add the symbol to the processing stack
+        stack.push_back(s);
+
+        if (s.isNonterminal())
+        {
+            for (const auto &rule : g.getRules())
+            {
+                if (rule.getLeft() == s)
+                {
+                    // Recursively compute FIRST set for the rule's right-hand side symbols
+                    auto temp_first = FIRST(rule, g, stack, verbose);
+                    result.insert(temp_first.begin(), temp_first.end());
+
+                    // Check for EPSILON in the FIRST set of the rule
+                    if (temp_first.find(EPSILON) == temp_first.end())
+                    {
+                        // No EPSILON found, stop processing further rules
+                        break;
+                    }
                 }
             }
         }
-        else{
-            Terminal me = s; 
-            result[inserted++] = me;
+        else
+        {
+            // Terminal symbol case: directly insert the terminal into the result set
+            result.insert(Terminal(s));
         }
+
+        // Remove the symbol from the processing stack
+        stack.pop_back();
 
         return result;
     }
 
-    constexpr FIRST_TYPE FIRST(Rule s,[[maybe_unused]]Grammer g,[[maybe_unused]]FIRST_STACK_TYPE stack){
+    FIRST_TYPE FIRST(const Rule &s, const Grammar &g, [[maybe_unused]] FIRST_STACK_TYPE stack, [[maybe_unused]] bool verbose)
+    {
         FIRST_TYPE result;
-        auto right = s.getRight();
-        auto left = s.getLeft();
-        bool flag = false;
-        for (auto rhs : right ){
-            if(Util::find_first(stack,rhs)!=0){
+
+        bool has_epsilon = true;
+
+        for (const auto &rhs : s.getRight())
+        {
+            // Check if RHS symbol has already been processed in the current path
+            if (std::find(stack.begin(), stack.end(), rhs) != stack.end())
+            {
+                has_epsilon = false;
                 break;
             }
-            Util::insert(stack,left);
-            auto temp_first = FIRST(rhs,g,stack);
-            if(Util::find_first(temp_first,EPSILON)!=0){
-                Util::remove_first(temp_first,EPSILON);
-                Util::insert_if_no_present(result,temp_first);
-                flag = true;
-            }
-            else{
-                Util::insert_if_no_present(result, temp_first);
-                flag = false;
+
+            // Add the LHS symbol to the processing stack
+            stack.push_back(s.getLeft());
+
+            // Calculate FIRST set for the RHS symbol
+            auto temp_first = FIRST(rhs, g, stack);
+
+            // Remove LHS symbol from the processing stack
+            stack.pop_back();
+
+            result.insert(temp_first.begin(), temp_first.end());
+
+            // Check if EPSILON is in the FIRST set of the RHS symbol
+            if (temp_first.find(EPSILON) == temp_first.end())
+            {
+                has_epsilon = false;
                 break;
             }
-            Util::remove_first(stack,left);
         }
 
-        if(flag)
-            Util::insert_if_no_present(result,EPSILON);
+        // If EPSILON is in the FIRST set of all RHS symbols, add EPSILON to the result set
+        if (has_epsilon)
+        {
+            result.insert(EPSILON);
+        }
 
         return result;
     }

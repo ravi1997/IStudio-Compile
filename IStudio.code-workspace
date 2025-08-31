@@ -6,6 +6,7 @@
 		}
 	],
 	"settings": {
-		"hide-files.files": []
+		"hide-files.files": [],
+		"editor.acceptSuggestionOnEnter": "on"
 	}
 }

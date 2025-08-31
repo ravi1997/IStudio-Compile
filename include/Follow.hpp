@@ -2,69 +2,52 @@
 #include "Types_Compiler.hpp"
 #include "Terminal.hpp"
 #include "Symbol.hpp"
-#include "Grammer.hpp"
+#include "Grammar.hpp"
 #include "Util.hpp"
 #include "First.hpp"
 
 namespace IStudio::Compiler
 {
-    constexpr std::size_t follow_size = 50;
-    using FOLLOW_TYPE = std::array<Terminal, follow_size>;
+    using FOLLOW_TYPE = std::set<Terminal>;
 
-    constexpr FOLLOW_TYPE FOLLOW(Symbol s, Grammer g){
+     FOLLOW_TYPE FOLLOW(const Symbol& s, const Grammar& g){
         FOLLOW_TYPE result;
 
         if(s == g.getStartSymbol())
-            Util::insert_if_no_present(result,DOLLAR);
+            result.insert(DOLLAR);
 
-        auto rules = g.getRules();
 
-        for(auto rule : Util::iterate(rules)){
-            auto left = rule.getLeft();
+        for (const auto &rule : g.getRules())
+        {
+            const auto& left = rule.getLeft();
             auto right = rule.getRight();
+            bool found = false, EPSILON_flag = false;
 
-            auto indexs = Util::find_all(right,s);
-            auto len = Util::length(right);
-
-            for(auto index : Util::iterate(indexs,[](auto e){return e!=0;})){
-                if(len == index){
-                    if(left!=s){
-                        auto temp_follow = FOLLOW(left,g);
-                        Util::insert_if_no_present(result,temp_follow);
+            for (auto rhs : right){
+                if(found){
+                    auto temp_next_first = FIRST(rhs,g);
+                    result.insert(temp_next_first.begin(),temp_next_first.end());
+                    if(result.find(EPSILON)!=result.end()){
+                        result.erase(EPSILON);
+                        EPSILON_flag = true;
+                    }
+                    else{
+                        EPSILON_flag = false;
+                        found = false;
                     }
                 }
-                else{
-                    bool flag = false;
-                    for(;index<=len;index++){
-                        auto increment = [](auto start,auto count){
-                            for(decltype(count) i=0;i<count;i++)
-                                start++;
-                            return start;
-                        };
-
-
-                        auto element = *(increment(right.begin(),index));
-                        auto temp_first = FIRST(element,g);
-                        if(Util::find_first(temp_first,EPSILON)!=0){
-                            Util::remove_first(temp_first,EPSILON);
-                            flag = true;
-                            Util::insert_if_no_present(result,temp_first);
-                        }
-                        else{
-                            flag = false;
-                            Util::insert_if_no_present(result,temp_first);
-                            break;
-                        }
-                    }
-                    if(flag){
-                        if (left != s)
-                        {
-                            auto temp_follow = FOLLOW(left, g);
-                            Util::insert_if_no_present(result, temp_follow);
-                        }
-                    }
+                else if( rhs == s){
+                    found = true;
                 }
             }
+
+            if ((found && left != s) || EPSILON_flag)
+            {
+                auto temp_follow = FOLLOW(left, g);
+                result.insert(temp_follow.begin(),temp_follow.end());
+            }
+
+            
         }
 
         return result;

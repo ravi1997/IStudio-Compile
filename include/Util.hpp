@@ -7,12 +7,29 @@ namespace IStudio::Util
     template <typename T>
     concept NotStdArray = !std::is_same_v<T, std::array<typename T::value_type, T::size()>>;
 
-    constexpr auto valid = [](auto e)->bool{return e.isValid();};
+     auto valid = [](auto e)->bool{return e.isValid();};
+
+     auto count = [](auto begin,auto end) -> std::size_t {
+        auto iter = begin;
+        std::size_t c = 0;
+        while(iter!=end){
+            c++;
+            iter++;
+        }
+
+        return c;
+    };
+
+     auto countOne = [](auto container) -> std::size_t {
+        return count(container.begin(),container.end());
+    };
+
+
 
     namespace rng = std::ranges;
 
     template <rng::range R>
-    constexpr auto to_vector(R &&r)
+     auto to_vector(R &&r)
     {
         using elem_t = std::decay_t<rng::range_value_t<R>>;
         return std::vector<elem_t>{r.begin(), r.end()};
@@ -23,156 +40,127 @@ namespace IStudio::Util
         return to_vector(filter1) == to_vector(filter2);
     }
 
-    template <typename t, std::size_t N, typename filter_type = decltype(valid)>
-    constexpr auto iterate(const std::array<t, N> &arr, filter_type fil = valid)
+    template <typename T>
+    class generator
     {
-        return arr | std::views::filter(fil);
-    }
+    public:
+        struct promise_type;
+        using handle_type = std::coroutine_handle<promise_type>;
 
-    template <typename t, std::size_t N, typename filter_type = decltype(valid)>
-    constexpr std::size_t length(std::array<t, N> &arr, filter_type fil = valid)
-    {
-        std::size_t len = 0;
-        for ([[maybe_unused]] auto e : iterate(arr,fil))
-            len++;
-        return len;
-    }
-
-    template <typename t, std::size_t N, typename filter_type = decltype(valid)>
-    constexpr std::size_t length(std::ranges::filter_view<std::ranges::ref_view<const std::array<t, N>>, filter_type> &arr, [[maybe_unused]] filter_type fil = valid)
-    {
-        std::size_t len = 0;
-        for ([[maybe_unused]] auto e : arr)
-            len++;
-        return len;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &insert(std::array<t, N> &arr, T& e, filter_type fil = valid)
-    {
-        arr[length(arr,fil)] = e;
-        return arr;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &insert_if_no_present(std::array<t, N> &arr, T &e, filter_type fil = valid)
-    {
-        auto find = []<typename t2, std::size_t N2, typename T2, typename filter_type2 = decltype(valid)>(std::array<t2, N2> & arr2, T2 e2, filter_type2 fil2 = valid)->std::size_t
+        struct promise_type
         {
-            std::size_t index = 1;
-            for (auto& a : iterate(arr2, fil2))
-                if (a == e2)
-                    return index;
-                else
-                    index++;
-            return 0;
+            T current_value;
+
+            auto initial_suspend() noexcept
+            {
+                return std::suspend_always{};
+            }
+
+            auto final_suspend() noexcept
+            {
+                return std::suspend_always{};
+            }
+
+            auto yield_value(auto &&value) noexcept
+            {
+                current_value = std::forward<decltype(value)>(value);
+                return std::suspend_always{};
+            }
+
+            void return_void() noexcept {}
+
+            void unhandled_exception()
+            {
+                std::terminate();
+            }
+
+            auto get_return_object() noexcept
+            {
+                return generator{handle_type::from_promise(*this)};
+            }
+
+            void reset() noexcept
+            {
+                current_value = T{};
+            }
         };
-        if(find(arr,e,fil)==0){
-            arr[length(arr, fil)] = e;
-            std::sort(arr.begin(), arr.begin()+length(arr,fil));
+
+    private:
+        handle_type coro_handle;
+
+    public:
+        explicit generator(handle_type h) : coro_handle(h) {}
+
+        generator(const generator &) = delete;
+        generator &operator=(const generator &) = delete;
+
+        generator(generator &&other) noexcept : coro_handle(other.coro_handle)
+        {
+            other.coro_handle = nullptr;
         }
-        return arr;
-    }
 
-
-
-    template <typename t, std::size_t N, typename T, std::size_t M, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &insert(std::array<t, N> &arr, std::array<T, M> arr1, filter_type fil = valid)
-    {
-        auto index = length(arr,fil);
-        for (auto e : iterate(arr1,fil))
-            arr[index++] = e;
-        return arr;
-    }
-
-    template <typename t, std::size_t N, typename T, std::size_t M, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &insert_if_no_present(std::array<t, N> &arr, std::array<T, M> arr1, filter_type fil = valid)
-    {
-        for (auto e : iterate(arr1,fil))
-            insert_if_no_present(arr, e, fil);
-        return arr;
-    }
-
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::size_t find_first(std::array<t, N> &arr, T e, filter_type fil = valid)
-    {
-        std::size_t index = 1;
-        for(auto a : iterate(arr,fil))
-            if(a == e)
-                return index;
-            else
-                index++;
-        return 0;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::size_t find_last(std::array<t, N> &arr, T e,filter_type fil = valid)
-    {
-        std::size_t index = length(arr,fil);
-        for (auto a : iterate(arr,fil) | std::views::reverse)
-            if (a == e)
-                return index;
-            else
-                index--;
-        return 0;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<std::size_t, N> find_all(std::array<t, N> &arr, T e, filter_type fil = valid)
-    {
-        std::array<std::size_t,N> result = {0};
-        std::size_t index = 1;
-        for (auto a : iterate(arr,fil))
-            if (a == e)
-                insert(result,index,[](auto sss){return sss != 0;});
-            else
-                index++;
-        return result;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<std::size_t, N> find_all(std::ranges::filter_view<std::ranges::ref_view<const std::array<t, N>>, filter_type>& arr, T e,[[maybe_unused]] filter_type fil = valid)
-    {
-        std::array<std::size_t, N> result = {0};
-        std::size_t index = 1;
-        for (auto a : arr)
-            if (a == e)
-                insert(result, index, [](auto sss)
-                       { return sss != 0; });
-            else
-                index++;
-        return result;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &remove_first(std::array<t, N> &arr, T e, filter_type fil = valid)
-    {
-        auto index = find_first(arr,e,fil);
-        for(auto len = length(arr,fil);index<=len;index++)
-            arr[index-1] = arr[index];
-        return arr;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &remove_last(std::array<t, N> &arr, T e,filter_type fil = valid)
-    {
-        auto index = find_last(arr, e,fil);
-        for (auto len = length(arr,fil); index <= len; index++)
-            arr[index - 1] = arr[index];
-        return arr;
-    }
-
-    template <typename t, std::size_t N, typename T, typename filter_type = decltype(valid)>
-    constexpr std::array<t, N> &remove_all(std::array<t, N> &arr, T e,filter_type fil = valid)
-    {
-        std::size_t index = find(arr, e,fil);
-        while(index !=0){
-            for (auto len = length(arr,fil); index <= len; index++)
-                arr[index - 1] = arr[index];
-            index = find(arr,e,fil);
+        generator &operator=(generator &&other) noexcept
+        {
+            if (this != &other)
+            {
+                coro_handle = other.coro_handle;
+                other.coro_handle = nullptr;
+            }
+            return *this;
         }
-        return arr;
-    }
+
+        ~generator()
+        {
+            if (coro_handle)
+                coro_handle.destroy();
+        }
+
+        // Iterator support
+        class iterator
+        {
+        public:
+            void operator++()
+            {
+                coro_handle.resume();
+            }
+
+            const T &operator*() const
+            {
+                return coro_handle.promise().current_value;
+            }
+
+            bool operator!=(const iterator &rhs) const
+            {
+                return coro_handle != rhs.coro_handle;
+            }
+
+        private:
+            iterator(handle_type h) : coro_handle(h) {}
+
+            friend class generator;
+            handle_type coro_handle;
+        };
+
+        iterator begin() const
+        {
+            if (coro_handle)
+                coro_handle.resume();
+            return iterator{coro_handle};
+        }
+
+        iterator end() const
+        {
+            return iterator{nullptr};
+        }
+
+        void reset()
+        {
+            if (coro_handle)
+            {
+                coro_handle.promise().reset();
+                coro_handle.resume();
+            }
+        }
+    };
 
 } // namespace IStudio::Util

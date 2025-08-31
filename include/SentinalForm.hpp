@@ -2,6 +2,9 @@
 
 #include "Types_Compiler.hpp"
 #include "Rule.hpp"
+#include "First.hpp"
+#include "UUID.h"
+#include <ostream>
 
 namespace IStudio::Compiler
 {
@@ -10,148 +13,181 @@ namespace IStudio::Compiler
     {
     public:
         using RuleType = std::reference_wrapper<const Rule>;
-        using MarkerType = decltype(DEFAULT_RULE.getRight().begin());
+        using MarkerType = std::size_t;
 
-        constexpr SentinalForm() = default;
-        constexpr ~SentinalForm() = default;
+        // Default and parameterized constructors
+        SentinalForm() = default;
 
-        constexpr SentinalForm(const RuleType &rule, const MarkerType &marker, bool valid)
-            : rule(rule), marker(marker), valid(valid)
+        SentinalForm(const RuleType &rule, MarkerType marker, MarkerType marker_BEGIN, MarkerType marker_END)
+            : rule(rule), marker(marker), marker_BEGIN(marker_BEGIN), marker_END(marker_END)
         {
         }
 
-        constexpr SentinalForm(const SentinalForm &other)
-            : rule(other.rule), marker(other.marker), valid(other.valid)
+        SentinalForm(const RuleType &rule)
+            : rule(rule), marker(0), marker_BEGIN(0), marker_END(rule.get().getRight().size())
         {
         }
 
-        constexpr SentinalForm &operator=(const SentinalForm &other)
+        // Rule-specific member functions
+        const Rule &getRule() const
         {
-            if (this != &other)
-            {
-                rule = other.rule;
-                marker = other.marker;
-                valid = other.valid;
-            }
-            return *this;
+            return rule.get();
         }
 
-        constexpr const Rule &getRule() const
-        {
-            return rule;
-        }
-
-        constexpr void setRule(const RuleType &newRule)
+        void setRule(const RuleType &newRule)
         {
             rule = newRule;
         }
 
-        constexpr const MarkerType &getMarker() const
+        // Marker-related member functions
+        const MarkerType &getMarker() const
         {
             return marker;
         }
 
-        constexpr void setMarker(const MarkerType &newMarker)
+        const MarkerType &getMarker_BEGIN() const
         {
-            marker = newMarker;
+            return marker_BEGIN;
         }
 
-        constexpr bool isValid() const
+        const MarkerType &getMarker_END() const
         {
-            return valid;
+            return marker_END;
         }
 
-        constexpr void setValid(bool newValid)
+        SentinalForm getNext() const
         {
-            valid = newValid;
+            return SentinalForm(rule, marker + 1, marker_BEGIN, marker_END);
         }
 
-        constexpr SentinalForm getNext() const
+        // Symbol manipulation functions
+        Symbol getSymbolAfterMarker() const
         {
-            MarkerType nextMarker = marker;
-            ++nextMarker;
-            return SentinalForm(rule, nextMarker, valid);
-        }
-
-        constexpr Symbol getSymbolAfterMarker() const{
-            auto rule = getRule();
-            auto right = rule.getRight();
-            MarkerType end = right.end();
-            if( end != getMarker())
+            auto right = getRule().getRight();
+            if (marker < right.size())
+            {
+                return right[marker];
+            }
             return Symbol{};
         }
 
-        constexpr bool operator==(const SentinalForm &other) const
+        // Lookahead calculation
+        std::set<Terminal> getLookAheadForNextSymbol(const std::set<Terminal> &lookaheadSet, const Grammar &grammar) const
         {
-            if (!isValid() || !other.isValid())
-                return false;
-            return getRule() == other.getRule() && getMarker() == other.getMarker();
+            std::set<Terminal> result;
+
+            bool epsilon = false;
+            auto end = getMarker_END();
+            auto marker = getMarker() + 1; // Move to the next marker position
+            auto &rule = getRule();
+            auto right = rule.getRight();
+
+            while (marker < end)
+            {
+                if (epsilon)
+                {
+                    epsilon = false;
+                    result.erase(EPSILON);
+                }
+
+                auto &symbol = right[marker];
+                auto firstSet = FIRST(symbol, grammar);
+
+                result.insert(firstSet.begin(), firstSet.end());
+
+                if (firstSet.find(EPSILON) != firstSet.end())
+                {
+                    epsilon = true;
+                }
+
+                ++marker;
+            }
+
+            if (epsilon)
+            {
+                result.erase(EPSILON);
+                result.insert(lookaheadSet.begin(), lookaheadSet.end());
+            }
+
+            if (result.empty())
+            {
+                result = lookaheadSet;
+            }
+
+            return result;
         }
 
-        constexpr bool operator!=(const SentinalForm &other) const
+        // Comparison operators
+        bool operator==(const SentinalForm &other) const
+        {
+            return (getRule() == other.getRule() && getMarker() == other.getMarker());
+        }
+
+        bool operator!=(const SentinalForm &other) const
         {
             return !(*this == other);
         }
 
-        constexpr bool operator<(const SentinalForm &other) const
+        bool operator<(const SentinalForm &other) const
         {
-            if (!isValid() || !other.isValid())
-                return false;
-            if (getRule() == other.getRule()){
-                auto r1 = getRule();
-                auto r2 = other.getRule();
-                
-                auto rr1 = r1.getRight();
-                auto rr2 = r2.getRight();
-
-                auto rrb1 = rr1.begin();
-                auto rrb2 = rr2.begin();
-
-                auto d1 = std::distance(rrb1,getMarker());
-                auto d2 = std::distance(rrb2,other.getMarker());
-
-                return d1 < d2;
+            if (getRule() == other.getRule())
+            {
+                return getMarker() - getMarker_BEGIN() < other.getMarker() - other.getMarker_BEGIN();
             }
             return getRule() < other.getRule();
         }
 
-        constexpr bool operator>(const SentinalForm &other) const
+        bool operator>(const SentinalForm &other) const
         {
-            if (!isValid() || !other.isValid())
-                return false;
             if (getRule() == other.getRule())
             {
-                auto r1 = getRule();
-                auto r2 = other.getRule();
-
-                auto rr1 = r1.getRight();
-                auto rr2 = r2.getRight();
-
-                auto rrb1 = rr1.begin();
-                auto rrb2 = rr2.begin();
-
-                auto d1 = std::distance(rrb1, getMarker());
-                auto d2 = std::distance(rrb2, other.getMarker());
-
-                return d1 > d2;
+                return getMarker() - getMarker_BEGIN() > other.getMarker() - other.getMarker_BEGIN();
             }
             return getRule() > other.getRule();
         }
 
-        constexpr bool operator<=(const SentinalForm &other) const
+        bool operator<=(const SentinalForm &other) const
         {
             return (*this == other) || (*this < other);
         }
 
-        constexpr bool operator>=(const SentinalForm &other) const
+        bool operator>=(const SentinalForm &other) const
         {
             return (*this == other) || (*this > other);
         }
 
+        // Output operator for printing
+        friend std::ostream &operator<<(std::ostream &o, const SentinalForm &s)
+        {
+            o << s.getRule().getLeft() << " -> ";
+
+            auto right = s.getRule().getRight();
+
+            std::size_t i = 0;
+
+            for (const auto &sym : right)
+            {
+                if (i == s.getMarker())
+                {
+                    o << " . ";
+                }
+                o << sym << " ";
+                ++i;
+            }
+
+            if (i == s.getMarker())
+            {
+                o << " . ";
+            }
+            return o;
+        }
+
     private:
         RuleType rule = DEFAULT_RULE;
-        MarkerType marker = DEFAULT_RULE.getRight().begin();
-        bool valid = false;
+        MarkerType marker = 0;
+        MarkerType marker_BEGIN = 0;
+        MarkerType marker_END = 0;
+        Util::UUID guid;
     };
 
 } // namespace IStudio::Compiler
